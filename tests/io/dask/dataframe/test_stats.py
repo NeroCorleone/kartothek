@@ -274,10 +274,11 @@ def test_collect_dataset_metadata_table_without_partition(store_factory):
         partition_on=["A"],
     )
 
-    # df_stats = collect_dataset_metadata(
-    #     store_factory=store_factory, dataset_uuid="dataset_uuid", table_name="table2",
-    # )
-    # TODO assertions
+    df_stats = collect_dataset_metadata(
+        store=store_factory, dataset_uuid="dataset_uuid", table_name="table2",
+    )
+    assert len(df_stats) == 1
+    assert df_stats.iloc[0]["partition_label"].startswith("A=1/")
 
 
 def test_collect_dataset_metadata_invalid_frac(store_session_factory, dataset):
