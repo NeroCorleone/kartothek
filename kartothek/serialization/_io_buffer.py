@@ -3,6 +3,8 @@ Improved IO buffering compared to ``io.BufferedReader``.
 
 The main issues w/ ``io.BufferedReader`` is that it is only meant of sequencial reads and that it resets the buffer on
 ``.seek(...)``. This happens quite often in pyarrow and basically renders the buffereing inefficient.
+
+# TODO what do we need and why a custom buffer?
 """
 import io
 import logging
@@ -18,6 +20,20 @@ class BlockBuffer(io.BufferedIOBase):
     """
 
     def __init__(self, raw, blocksize=1024):
+        """
+        # TODO rewrite
+        Creates a BlockBuffer that caches already read bytes.
+        The file to be read is split into blocksize
+
+
+        Parameters
+        ----------
+        raw:
+            raw binary stream
+        blocksize:
+            TODO size in bytes? used for what exactly?
+
+        """
         self._raw = raw
         self._blocksize = blocksize
         self._size = None
@@ -105,13 +121,24 @@ class BlockBuffer(io.BufferedIOBase):
 
         # read data into temporary variable and dump it into cache
         size = min(self._blocksize * n, self._size - offset)
-        data = self._raw.read(size)
-        if len(data) != size:
-            err = (
-                f"Expected raw read to return {size} bytes, but instead got {len(data)}"
-            )
-            _logger.error(err)
-            raise AssertionError(err)
+        # TODO it could be that read only returns parts of the bytes
+        # https://docs.python.org/3.6/library/io.html#io.RawIOBase
+        # Fewer than size bytes may be returned if the operating system call
+        # returns fewer than size bytes.
+        # reading is *only* finished if 0 bytes are returned and size was not 0
+        # TODO retry this block
+        max_nb_retries = 3
+        nb_retry = 0
+        while nb_retry < max_nb_retries:
+            data = self._raw.read(size)
+            if len(data) != size:
+                err = f"Expected raw read to return {size} bytes, but instead got {len(data)}"
+                _logger.error(err)
+                nb_retry += 1
+            else:
+                break
+        else:
+            raise AssertionError("This is fucked.")
 
         # fill blocks
         for i in range(n):
